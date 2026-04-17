@@ -1,0 +1,92 @@
+[
+  {
+    "id": "calc-001",
+    "prompt": "What is 42 * 7?",
+    "expected_tools": ["calculator"],
+    "category": "arithmetic"
+  },
+  {
+    "id": "calc-002",
+    "prompt": "Calculate 1024 / 32 + 5",
+    "expected_tools": ["calculator"],
+    "category": "arithmetic"
+  },
+  {
+    "id": "calc-003",
+    "prompt": "Compute 256 ** 0.5",
+    "expected_tools": ["calculator"],
+    "category": "arithmetic"
+  },
+  {
+    "id": "calc-004",
+    "prompt": "Sum of 99 + 1",
+    "expected_tools": ["calculator"],
+    "category": "arithmetic"
+  },
+  {
+    "id": "calc-005",
+    "prompt": "3.14159 * 2 * 10",
+    "expected_tools": ["calculator"],
+    "category": "arithmetic"
+  },
+  {
+    "id": "docs-001",
+    "prompt": "Explain CQRS pattern for microservices",
+    "expected_tools": ["search_docs"],
+    "category": "docs"
+  },
+  {
+    "id": "docs-002",
+    "prompt": "What is event sourcing and how does it differ from CRUD?",
+    "expected_tools": ["search_docs"],
+    "category": "docs"
+  },
+  {
+    "id": "docs-003",
+    "prompt": "How do vector databases work with embeddings?",
+    "expected_tools": ["search_docs"],
+    "category": "docs"
+  },
+  {
+    "id": "docs-004",
+    "prompt": "What is acceptable latency for real-time APIs?",
+    "expected_tools": ["search_docs"],
+    "category": "docs"
+  },
+  {
+    "id": "docs-005",
+    "prompt": "Event-driven architecture advantages",
+    "expected_tools": ["search_docs"],
+    "category": "docs"
+  },
+  {
+    "id": "multi-001",
+    "prompt": "If latency target is 100ms and we run 5 services, what is the per-service budget?",
+    "expected_tools": ["calculator", "search_docs"],
+    "category": "multi-tool"
+  },
+  {
+    "id": "multi-002",
+    "prompt": "With CQRS, how many read replicas do I need if read QPS is 5000 and each handles 250?",
+    "expected_tools": ["calculator", "search_docs"],
+    "category": "multi-tool"
+  },
+  {
+    "id": "direct-001",
+    "prompt": "What is the capital of France?",
+    "expected_tools": [],
+    "category": "direct"
+  },
+  {
+    "id": "direct-002",
+    "prompt": "Who wrote Pride and Prejudice?",
+    "expected_tools": [],
+    "category": "direct"
+  },
+  {
+    "id": "direct-003",
+    "prompt": "Translate 'hello' to Spanish",
+    "expected_tools": [],
+    "category": "direct"
+  }
+]
