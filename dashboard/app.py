@@ -158,7 +158,7 @@ else:
         fig = px.line(df_time, x="created_at", y="count", markers=True,
                       labels={"created_at": "Time", "count": "Requests"})
         fig.update_layout(margin=dict(l=0, r=0, t=10, b=0), height=250)
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
 
     # ── Provider mix (pie) ─────────────────────────────────────────────────
     with col_right:
@@ -167,7 +167,7 @@ else:
         provider_counts.columns = ["provider", "count"]
         fig = px.pie(provider_counts, values="count", names="provider", hole=0.4)
         fig.update_layout(margin=dict(l=0, r=0, t=10, b=0), height=250)
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
 
     col_left2, col_right2 = st.columns(2)
 
@@ -177,7 +177,7 @@ else:
         fig = px.histogram(df, x="latency_ms", nbins=20,
                            labels={"latency_ms": "Latency (ms)"})
         fig.update_layout(margin=dict(l=0, r=0, t=10, b=0), height=250)
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
 
     # ── Cost trend (area) ─────────────────────────────────────────────────
     with col_right2:
@@ -186,7 +186,7 @@ else:
         fig = px.area(df, x="created_at", y="cumulative_cost",
                       labels={"created_at": "Time", "cumulative_cost": "Cumulative Cost (USD)"})
         fig.update_layout(margin=dict(l=0, r=0, t=10, b=0), height=250)
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
 
     # ── Fallback rate & tool usage ─────────────────────────────────────────
     col_left3, col_right3 = st.columns(2)
@@ -200,7 +200,7 @@ else:
                      color_discrete_map={"Fallback": "#ef4444", "Primary": "#22c55e"},
                      labels={"label": "", "count": "Requests"})
         fig.update_layout(showlegend=False, margin=dict(l=0, r=0, t=10, b=0), height=250)
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
 
     with col_right3:
         st.subheader("Tool Usage per Request")
@@ -210,22 +210,26 @@ else:
         fig = px.bar(tool_dist, x="label", y="count",
                      labels={"label": "Tools Selected", "count": "Requests"})
         fig.update_layout(margin=dict(l=0, r=0, t=10, b=0), height=250)
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
 
     # ── Provider metrics table ─────────────────────────────────────────────
     st.subheader("Provider Metrics")
     by_provider = summary.get("by_provider", {})
     if by_provider:
         rows = []
-        for provider, metrics in by_provider.items():
-            rows.append({
-                "Provider":       provider,
-                "Requests":       metrics.get("request_count", 0),
-                "Avg Latency ms": f"{metrics.get('avg_latency_ms', 0):.1f}",
-                "Avg Cost USD":   f"${metrics.get('avg_cost_usd', 0):.6f}",
-                "Total Cost USD": f"${metrics.get('total_cost_usd', 0):.4f}",
-            })
-        st.dataframe(rows, use_container_width=True)
+        for provider, value in by_provider.items():
+            # value may be an int (request count) or a dict with detailed metrics
+            if isinstance(value, dict):
+                rows.append({
+                    "Provider":       provider,
+                    "Requests":       value.get("request_count", 0),
+                    "Avg Latency ms": f"{value.get('avg_latency_ms', 0):.1f}",
+                    "Avg Cost USD":   f"${value.get('avg_cost_usd', 0):.6f}",
+                    "Total Cost USD": f"${value.get('total_cost_usd', 0):.4f}",
+                })
+            else:
+                rows.append({"Provider": provider, "Requests": int(value)})
+        st.dataframe(rows, width="stretch")
 
     # ── Raw event log ──────────────────────────────────────────────────────
     with st.expander("Raw Event Log"):
@@ -233,7 +237,7 @@ else:
                           "tokens_in", "tokens_out", "estimated_cost_usd",
                           "fallback_used", "tool_count"]].copy()
         display_df["request_id"] = display_df["request_id"].str[:8] + "…"
-        st.dataframe(display_df, use_container_width=True)
+        st.dataframe(display_df, width="stretch")
 
 # ---------------------------------------------------------------------------
 # Auto-refresh
