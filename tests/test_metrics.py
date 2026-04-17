@@ -25,10 +25,12 @@ def test_events_endpoint_returns_recent_events() -> None:
     events = client.get("/v1/eval/events?limit=5")
     assert events.status_code == 200
     payload = events.json()
-    assert isinstance(payload, list)
-    assert payload
-    assert "request_id" in payload[0]
-    assert "provider" in payload[0]
+    assert isinstance(payload, dict)
+    assert "events" in payload
+    event_list = payload["events"]
+    assert event_list
+    assert "request_id" in event_list[0]
+    assert "provider" in event_list[0]
 
 
 def test_request_id_header_propagates() -> None:

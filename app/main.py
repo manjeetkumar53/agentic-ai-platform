@@ -4,8 +4,10 @@ from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi import Request
+from fastapi.responses import JSONResponse
 
 from app.config import load_settings
+from app.guardrails import GuardrailViolation
 from app.middleware import RequestLoggingMiddleware, configure_logging
 from app.models import AgentRunRequest, AgentRunResponse, HealthResponse, MetricsSummary
 from app.orchestration import AgentPlatformService
@@ -18,6 +20,14 @@ app.add_middleware(RequestLoggingMiddleware)
 _settings = load_settings()
 _telemetry = TelemetryStore(db_path=Path(_settings.telemetry_db))
 _service = AgentPlatformService(settings=_settings, telemetry=_telemetry)
+
+
+@app.exception_handler(GuardrailViolation)
+async def guardrail_violation_handler(request: Request, exc: GuardrailViolation) -> JSONResponse:
+    return JSONResponse(
+        status_code=422,
+        content={"error": "guardrail_violation", "guard": exc.guard, "detail": exc.detail},
+    )
 
 
 @app.get("/health", response_model=HealthResponse)
@@ -42,5 +52,5 @@ def circuit_breaker_status() -> dict[str, str]:
 
 
 @app.get("/v1/eval/events")
-def eval_events(limit: int = 100) -> list[dict]:
-    return _service.events(limit=limit)
+def eval_events(limit: int = 100) -> dict:
+    return {"events": _service.events(limit=limit)}

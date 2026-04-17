@@ -4,6 +4,7 @@ import time
 import uuid
 
 from app.config import Settings
+from app.guardrails import Guardrails, GuardrailViolation
 from app.memory import SessionMemoryStore
 from app.models import AgentRunResponse, AgentTrace, ExecutionResult, PlannerOutput, ToolCall
 from app.providers.factory import create_provider
@@ -57,7 +58,7 @@ class ExecutorAgent:
 
 
 class AgentPlatformService:
-    def __init__(self, settings: Settings, telemetry: TelemetryStore) -> None:
+    def __init__(self, settings: Settings, telemetry: TelemetryStore, guardrails: Guardrails | None = None) -> None:
         self._settings = settings
         self._planner = PlannerAgent()
         self._executor = ExecutorAgent()
@@ -65,6 +66,7 @@ class AgentPlatformService:
         self._fallback_llm = MockLLMProvider()
         self._memory = SessionMemoryStore()
         self._telemetry = telemetry
+        self._guardrails = guardrails or Guardrails()
         self._breaker = CircuitBreaker(
             failure_threshold=settings.breaker_failure_threshold,
             recovery_timeout_s=settings.breaker_recovery_timeout_s,
@@ -91,6 +93,10 @@ class AgentPlatformService:
 
         memory = self._memory.read(sid)
         planner_output = self._planner.plan(prompt)
+
+        # ── Prompt guardrails (raises GuardrailViolation on policy breach) ──
+        self._guardrails.check_prompt(prompt, sid, planner_output.tools)
+
         execution = self._executor.execute(prompt, planner_output.tools)
         fallback_used = False
         provider_name = self._llm.name
@@ -114,6 +120,9 @@ class AgentPlatformService:
                 prompt=prompt,
                 context=context_blob,
             )
+
+        # ── Response guardrails ───────────────────────────────────────────
+        self._guardrails.check_response(answer)
 
         self._memory.upsert(sid, {"last_prompt": prompt, "last_tools": planner_output.tools})
 
