@@ -7,6 +7,9 @@ Production-style mini agent platform built to demonstrate planner/executor orche
 - Multi-agent flow: Planner -> Executor -> LLM response composer
 - Tool calling with explicit traces
 - Session memory hooks
+- Provider abstraction with env-based selection (`mock`, `ollama`, `openai`, `anthropic`)
+- Reliability layer: retry + circuit breaker + fallback to mock provider
+- In-memory telemetry with cost/latency summaries
 - API-first interface with typed responses
 - Test coverage for orchestration paths
 
@@ -20,6 +23,19 @@ uvicorn app.main:app --reload
 ```
 
 Open Swagger at `http://127.0.0.1:8000/docs`.
+
+## Configuration
+
+Copy `.env.example` and adjust values:
+
+```env
+MODEL_PROVIDER=mock
+INPUT_PRICE_PER_1M=0.15
+OUTPUT_PRICE_PER_1M=0.60
+MAX_ATTEMPTS=2
+BREAKER_FAILURE_THRESHOLD=3
+BREAKER_RECOVERY_TIMEOUT_S=15
+```
 
 ## API
 
@@ -40,7 +56,23 @@ Response includes:
 - `trace.selected_tools`
 - `trace.tool_calls`
 - `latency_ms`
-- token/cost estimates
+- `tokens_in`, `tokens_out`, `estimated_cost_usd`
+- `provider`, `fallback_used`
+
+### GET /v1/metrics/summary
+
+Returns aggregate runtime metrics:
+
+- `request_count`
+- `avg_latency_ms`
+- `avg_cost_usd`
+- `total_cost_usd`
+- `fallback_count`
+- `by_provider`
+
+### GET /v1/circuit-breaker/status
+
+Returns current breaker state: `closed`, `open`, or `half_open`.
 
 ## Tests
 
@@ -50,7 +82,7 @@ pytest -q
 
 ## Next build steps
 
-- Replace mock provider with OpenAI/Ollama/Anthropic adapters
 - Add Redis-backed short-term memory and Postgres-backed long-term memory
-- Add guardrails, retries, and circuit breaker around tool/LLM execution
-- Add tracing dashboard (latency, token cost, tool success rate)
+- Add guardrail policies (PII filtering, tool allowlist, response constraints)
+- Add structured traces and dashboard for per-step latency/token/tool success
+- Add planner quality evaluation harness and regression prompts

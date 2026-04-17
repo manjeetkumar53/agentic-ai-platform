@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from app.main import _service
 from tests.conftest import client
 
 
@@ -10,6 +11,8 @@ def test_run_agent_basic() -> None:
     assert body["request_id"]
     assert "answer" in body
     assert body["trace"]["selected_tools"] == []
+    assert body["provider"]
+    assert body["fallback_used"] is False
 
 
 def test_run_agent_calculator_path() -> None:
@@ -44,3 +47,22 @@ def test_session_memory_roundtrip() -> None:
     assert second.status_code == 200
     body = second.json()
     assert body["trace"]["planner_reasoning"]
+
+
+def test_fallback_when_primary_provider_fails() -> None:
+    class BrokenProvider:
+        name = "broken"
+
+        def complete(self, prompt: str, context: str) -> tuple[str, int, int]:
+            raise RuntimeError("forced failure")
+
+    previous = _service._llm
+    _service._llm = BrokenProvider()
+    try:
+        resp = client.post("/v1/agent/run", json={"prompt": "Force fallback path"})
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["fallback_used"] is True
+        assert body["provider"] == "mock"
+    finally:
+        _service._llm = previous
