@@ -1,6 +1,6 @@
 # Agentic AI Platform
 
-A production-style agentic AI platform built in 7 days, demonstrating the complete engineering stack needed to ship a reliable, observable, and safe multi-agent system.
+An API-first agentic AI reference implementation focused on orchestration, tool execution, guardrails, reliability patterns, telemetry, evaluation, and operational dashboards.
 
 ![Agent Request Flow](assets/demo/agent-flow.gif)
 
@@ -8,7 +8,26 @@ A production-style agentic AI platform built in 7 days, demonstrating the comple
 
 ## Why this exists
 
-Most "agent" demos are wrappers around a single LLM call. This repo shows what comes next: **planning, tool execution, reliability, observability, safety guardrails, and evaluation** — the layers that matter in production.
+Most "agent" demos stop at a single model call. Real systems require more:
+
+- deterministic orchestration and tool invocation traces
+- resilient provider behavior under failure
+- safety and policy enforcement before and after generation
+- observability for latency, cost, fallback rate, and provider mix
+- evaluation harnesses to catch planner regressions over time
+
+This repository is built to showcase those production concerns end-to-end.
+
+## At a glance
+
+| Capability | Production behavior |
+|---|---|
+| Multi-agent orchestration | Planner -> Executor -> Provider flow with explicit trace objects |
+| Reliability | Circuit breaker + retries + fallback provider |
+| Safety | Prompt and response guardrails with structured violation responses |
+| Observability | Request IDs, latency headers, SQLite telemetry, metrics endpoints |
+| Evaluation | Benchmark runner with precision/recall/F1 and CI threshold gating |
+| Operations UI | Streamlit analytics dashboard for runtime monitoring |
 
 ---
 
@@ -67,6 +86,34 @@ uvicorn app.main:app --reload
 ```
 
 Open **http://127.0.0.1:8000/docs** for the interactive Swagger UI.
+
+## Local run modes
+
+### API only
+
+```bash
+uvicorn app.main:app --reload
+```
+
+### API + dashboard
+
+```bash
+# terminal 1
+uvicorn app.main:app --reload
+
+# terminal 2
+streamlit run dashboard/app.py
+```
+
+### API with Ollama provider
+
+```bash
+# terminal 1
+ollama serve
+
+# terminal 2
+MODEL_PROVIDER=ollama uvicorn app.main:app --reload
+```
 
 ### Analytics dashboard
 
@@ -156,7 +203,7 @@ Returns aggregate runtime metrics: `request_count`, `avg_latency_ms`, `avg_cost_
 
 ### `GET /v1/circuit-breaker/status`
 
-Returns `{ "state": "CLOSED" }`. States: `CLOSED` → `OPEN` → `HALF_OPEN`.
+Returns `{ "state": "closed" }`. States: `closed` -> `open` -> `half_open`.
 
 ### `GET /v1/eval/events?limit=100`
 
@@ -181,6 +228,13 @@ PIIGuard also exposes `redact()` — replaces sensitive tokens with `[REDACTED-T
 - **CircuitBreaker** — CLOSED → OPEN after N failures, auto-probes, returns to CLOSED on success
 - **Retry with backoff** — configurable max attempts and initial delay
 - **Fallback** — silent fallback to `MockLLMProvider` on provider failure; `fallback_used: true` in response
+
+## Operational endpoints
+
+- `GET /health`: liveness check
+- `GET /v1/metrics/summary`: aggregate request, latency, cost, fallback metrics
+- `GET /v1/eval/events?limit=100`: recent event stream
+- `GET /v1/circuit-breaker/status`: current reliability state
 
 ---
 
@@ -209,20 +263,94 @@ CI gates on F1 ≥ 0.80 — exit code 1 if regression detected.
 
 ---
 
-## Tests
+## How to test
+
+### 1. Fast smoke test (manual API validation)
+
+Start the API:
 
 ```bash
-pytest -q          # 54 tests
+uvicorn app.main:app --reload
 ```
 
-| Module | Tests | Coverage |
-|---|---|---|
-| `test_health.py` | 1 | /health endpoint |
-| `test_orchestrator.py` | 5 | planner paths, tool calls, fallback injection |
-| `test_metrics.py` | 4 | telemetry, events, X-Request-ID, circuit breaker |
-| `test_evaluation.py` | 13 | metric helpers, integration against benchmark dataset |
-| `test_dashboard.py` | 6 | fetch helpers (offline mocking) |
-| `test_guardrails.py` | 20 | PII patterns, allowlist, response guard, HTTP 422 |
+Run these checks:
+
+```bash
+# health
+curl -s http://127.0.0.1:8000/health
+
+# normal request
+curl -s -X POST http://127.0.0.1:8000/v1/agent/run \
+  -H "Content-Type: application/json" \
+  -d '{"prompt":"What is 42 * 7?"}'
+
+# guardrail violation (expects HTTP 422)
+curl -s -X POST http://127.0.0.1:8000/v1/agent/run \
+  -H "Content-Type: application/json" \
+  -d '{"prompt":"email me at demo@example.com"}'
+
+# telemetry and breaker
+curl -s http://127.0.0.1:8000/v1/metrics/summary
+curl -s http://127.0.0.1:8000/v1/circuit-breaker/status
+curl -s "http://127.0.0.1:8000/v1/eval/events?limit=5"
+```
+
+### 2. Automated test suite
+
+```bash
+pytest -q
+```
+
+Expected outcome: all tests pass.
+
+### 3. Run only critical suites
+
+```bash
+# orchestration + reliability behavior
+pytest -q tests/test_orchestrator.py tests/test_metrics.py
+
+# guardrail policy coverage
+pytest -q tests/test_guardrails.py
+
+# dashboard fetch helper behavior
+pytest -q tests/test_dashboard.py
+```
+
+### 4. Planner regression benchmark
+
+```bash
+python -m evaluation.run
+```
+
+This prints precision/recall/F1/exact-match and exits non-zero if quality drops below threshold.
+
+### 5. Dashboard verification
+
+```bash
+# terminal 1
+uvicorn app.main:app --reload
+
+# terminal 2
+streamlit run dashboard/app.py
+```
+
+In the dashboard, validate:
+
+- request count increases after API calls
+- provider mix and latency charts update
+- fallback count remains stable unless forced failures are introduced
+- circuit breaker badge reflects runtime state
+
+### Test coverage map
+
+| Module | Focus area |
+|---|---|
+| `test_health.py` | service liveness endpoint |
+| `test_orchestrator.py` | planning, tool calls, memory interaction, fallback path |
+| `test_metrics.py` | summary/event endpoints, request ID propagation, breaker status |
+| `test_evaluation.py` | metric math + benchmark dataset integration |
+| `test_dashboard.py` | dashboard data fetch helpers (offline mocks) |
+| `test_guardrails.py` | PII detection, allowlists, response constraints, HTTP 422 behavior |
 
 ---
 
@@ -264,17 +392,17 @@ agentic-ai-platform/
 
 ---
 
-## Build log
+## Milestones
 
-| Day | Commit | What shipped |
+| Milestone | Commit | What shipped |
 |-----|--------|--------------|
-| 1 | `fa2cacf` | FastAPI scaffold, Planner→Executor flow, mock provider, tools, session memory, 5 tests |
-| 2 | `2fe8f6f` | Provider factory (mock/OpenAI/Ollama/Anthropic), circuit breaker, retry, telemetry, 8 tests |
-| 3 | `b435236` | SQLite telemetry, RequestLoggingMiddleware, X-Request-ID, /eval/events, 10 tests |
-| 4 | `1cffb53` | Planner evaluation harness, 15-prompt benchmark, F1/precision/recall, CI gate, 23 tests |
-| 5 | `40a2a10` | Streamlit analytics dashboard (8 charts, auto-refresh, provider table), 29 tests |
-| 6 | `41feaf4` | Guardrails (PIIGuard, ToolAllowlist, ResponseGuard), HTTP 422 handler, 54 tests |
-| 7 | — | README polish, architecture diagram, agent-flow GIF, screenshot script |
+| Core API and orchestration | `fa2cacf` | FastAPI scaffold, Planner→Executor flow, mock provider, tools, session memory, tests |
+| Provider abstraction and resilience | `2fe8f6f` | Provider factory (mock/OpenAI/Ollama/Anthropic), circuit breaker, retry, telemetry |
+| Persistent telemetry and request tracing | `b435236` | SQLite telemetry, RequestLoggingMiddleware, X-Request-ID, /eval/events |
+| Planner evaluation harness | `1cffb53` | 15-prompt benchmark, precision/recall/F1/exact-match metrics, CI quality gate |
+| Runtime analytics dashboard | `40a2a10` | Streamlit dashboard with latency/cost/provider/fallback views |
+| Guardrails and policy handling | `41feaf4` | PIIGuard, ToolAllowlist, ResponseGuard, HTTP 422 violation handling |
+| Documentation and demo assets | `3136321` | README upgrade, architecture diagram, flow GIF, asset generation script |
 
 ---
 
