@@ -16,6 +16,7 @@ class Settings:
     max_attempts: int
     breaker_failure_threshold: int
     breaker_recovery_timeout_s: float
+    telemetry_db: str
 
 
 def load_settings() -> Settings:
@@ -32,4 +33,5 @@ def load_settings() -> Settings:
         max_attempts=int(os.getenv("MAX_ATTEMPTS", "2")),
         breaker_failure_threshold=int(os.getenv("BREAKER_FAILURE_THRESHOLD", "3")),
         breaker_recovery_timeout_s=float(os.getenv("BREAKER_RECOVERY_TIMEOUT_S", "15")),
+        telemetry_db=os.getenv("TELEMETRY_DB", "telemetry.db"),
     )

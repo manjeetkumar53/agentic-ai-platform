@@ -18,6 +18,31 @@ def test_metrics_summary_endpoint_updates() -> None:
     assert "by_provider" in payload
 
 
+def test_events_endpoint_returns_recent_events() -> None:
+    sent = client.post("/v1/agent/run", json={"prompt": "Generate event payload"})
+    assert sent.status_code == 200
+
+    events = client.get("/v1/eval/events?limit=5")
+    assert events.status_code == 200
+    payload = events.json()
+    assert isinstance(payload, list)
+    assert payload
+    assert "request_id" in payload[0]
+    assert "provider" in payload[0]
+
+
+def test_request_id_header_propagates() -> None:
+    rid = "test-request-id-123"
+    resp = client.post(
+        "/v1/agent/run",
+        json={"prompt": "Header propagation check"},
+        headers={"X-Request-ID": rid},
+    )
+    assert resp.status_code == 200
+    assert resp.headers["x-request-id"] == rid
+    assert resp.json()["request_id"] == rid
+
+
 def test_circuit_breaker_status_endpoint() -> None:
     resp = client.get("/v1/circuit-breaker/status")
     assert resp.status_code == 200

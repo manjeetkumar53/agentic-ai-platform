@@ -9,7 +9,7 @@ from app.models import AgentRunResponse, AgentTrace, ExecutionResult, PlannerOut
 from app.providers.factory import create_provider
 from app.providers.mock_llm import MockLLMProvider
 from app.reliability import CircuitBreaker, CircuitBreakerOpen, retry_with_backoff
-from app.telemetry import InMemoryTelemetryStore, TelemetryEvent
+from app.telemetry import TelemetryEvent, TelemetryStore, now_iso
 from app.tools.calculator import CalculatorTool
 from app.tools.search_docs import SearchDocsTool
 
@@ -57,14 +57,14 @@ class ExecutorAgent:
 
 
 class AgentPlatformService:
-    def __init__(self, settings: Settings) -> None:
+    def __init__(self, settings: Settings, telemetry: TelemetryStore) -> None:
         self._settings = settings
         self._planner = PlannerAgent()
         self._executor = ExecutorAgent()
         self._llm = create_provider(settings.model_provider)
         self._fallback_llm = MockLLMProvider()
         self._memory = SessionMemoryStore()
-        self._telemetry = InMemoryTelemetryStore()
+        self._telemetry = telemetry
         self._breaker = CircuitBreaker(
             failure_threshold=settings.breaker_failure_threshold,
             recovery_timeout_s=settings.breaker_recovery_timeout_s,
@@ -73,12 +73,20 @@ class AgentPlatformService:
     def metrics_summary(self) -> dict:
         return self._telemetry.summary()
 
+    def events(self, limit: int = 100) -> list[dict]:
+        return self._telemetry.all_events(limit=limit)
+
     def breaker_state(self) -> str:
         return self._breaker.state.value
 
-    def run(self, prompt: str, session_id: str | None = None) -> AgentRunResponse:
+    def run(
+        self,
+        prompt: str,
+        session_id: str | None = None,
+        request_id: str | None = None,
+    ) -> AgentRunResponse:
         t0 = time.perf_counter()
-        request_id = str(uuid.uuid4())
+        request_id = request_id or str(uuid.uuid4())
         sid = session_id or "default"
 
         memory = self._memory.read(sid)
@@ -122,6 +130,7 @@ class AgentPlatformService:
         self._telemetry.add(
             TelemetryEvent(
                 request_id=request_id,
+                created_at=now_iso(),
                 provider=provider_name,
                 latency_ms=latency_ms,
                 tokens_in=tokens_in,

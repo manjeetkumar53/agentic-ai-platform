@@ -9,7 +9,8 @@ Production-style mini agent platform built to demonstrate planner/executor orche
 - Session memory hooks
 - Provider abstraction with env-based selection (`mock`, `ollama`, `openai`, `anthropic`)
 - Reliability layer: retry + circuit breaker + fallback to mock provider
-- In-memory telemetry with cost/latency summaries
+- SQLite telemetry with cost/latency/provider summaries
+- Request tracing via `X-Request-ID` and `X-Latency-MS` headers
 - API-first interface with typed responses
 - Test coverage for orchestration paths
 
@@ -35,6 +36,7 @@ OUTPUT_PRICE_PER_1M=0.60
 MAX_ATTEMPTS=2
 BREAKER_FAILURE_THRESHOLD=3
 BREAKER_RECOVERY_TIMEOUT_S=15
+TELEMETRY_DB=telemetry.db
 ```
 
 ## API
@@ -73,6 +75,10 @@ Returns aggregate runtime metrics:
 ### GET /v1/circuit-breaker/status
 
 Returns current breaker state: `closed`, `open`, or `half_open`.
+
+### GET /v1/eval/events?limit=100
+
+Returns recent telemetry events (`request_id`, `provider`, cost, latency, tokens, fallback flag).
 
 ## Tests
 
