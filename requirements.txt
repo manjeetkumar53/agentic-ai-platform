@@ -4,6 +4,11 @@ pydantic==2.11.7
 pytest==8.4.1
 httpx==0.28.1
 
+# Dashboard
+streamlit>=1.35
+plotly>=5.22
+pandas>=2.2
+
 # Optional provider SDKs:
 # openai>=1.0
 # anthropic>=0.25
