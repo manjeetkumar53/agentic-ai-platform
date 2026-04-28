@@ -1,171 +1,98 @@
 # Agentic AI Platform
 
-An API-first agentic AI reference implementation focused on orchestration, tool execution, guardrails, reliability patterns, telemetry, evaluation, and operational dashboards.
+![Python](https://img.shields.io/badge/Python-3.13-3776AB?style=flat-square&logo=python&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-0.116-009688?style=flat-square&logo=fastapi&logoColor=white)
+![Tests](https://img.shields.io/badge/Tests-pytest-2ea44f?style=flat-square&logo=pytest&logoColor=white)
+![Focus](https://img.shields.io/badge/Focus-Agentic%20Systems-4338ca?style=flat-square)
+
+An API-first reference platform for building agentic AI systems with explicit planning, tool execution, guardrails, provider abstraction, reliability controls, telemetry, evaluation, and an operations dashboard.
+
+This is not a single-prompt demo. It is a compact production-style agent runtime designed to make each decision inspectable.
 
 ![Agent Request Flow](assets/demo/agent-flow.gif)
 
----
+## Why This Repo Matters
 
-## Why this exists
+Agent demos often hide the parts that matter in production: tool authorization, prompt safety, response filtering, fallback behavior, cost tracking, request tracing, and planner regression testing. This repo puts those concerns directly into the request path.
 
-Most "agent" demos stop at a single model call. Real systems require more:
+It demonstrates:
 
-- deterministic orchestration and tool invocation traces
-- resilient provider behavior under failure
-- safety and policy enforcement before and after generation
-- observability for latency, cost, fallback rate, and provider mix
-- evaluation harnesses to catch planner regressions over time
+- planner -> executor -> provider orchestration
+- typed tool calls and explicit trace objects
+- prompt and response guardrails
+- session memory boundaries
+- retry, circuit breaker, and fallback provider behavior
+- SQLite telemetry for latency, cost, provider mix, and fallback rate
+- evaluation harness for planner behavior
+- Streamlit dashboard for operational visibility
 
-This repository is built to showcase those production concerns end-to-end.
-
-## At a glance
+## At a Glance
 
 | Capability | Production behavior |
 |---|---|
-| Multi-agent orchestration | Planner -> Executor -> Provider flow with explicit trace objects |
-| Reliability | Circuit breaker + retries + fallback provider |
-| Safety | Prompt and response guardrails with structured violation responses |
-| Observability | Request IDs, latency headers, SQLite telemetry, metrics endpoints |
-| Evaluation | Benchmark runner with precision/recall/F1 and CI threshold gating |
-| Operations UI | Streamlit analytics dashboard for runtime monitoring |
-
----
+| Orchestration | Planner selects tools, executor runs them, provider generates final answer |
+| Tooling | Calculator and document search tools behind typed interfaces |
+| Guardrails | PII blocking, tool allowlist, response constraints |
+| Reliability | Retry, circuit breaker, provider fallback |
+| Observability | Request IDs, latency headers, telemetry events, metrics endpoints |
+| Evaluation | Precision/recall/F1 planner benchmark with threshold gate |
+| Dashboard | Streamlit runtime analytics with Plotly charts |
 
 ## Architecture
 
-```
-┌──────────┐   POST /v1/agent/run   ┌──────────────────────────────────────────────┐
-│  Client  │ ─────────────────────► │           FastAPI Application                │
-└──────────┘                        │                                              │
-                                    │  RequestLoggingMiddleware                    │
-                                    │    X-Request-ID  ·  X-Latency-MS            │
-                                    │                                              │
-                                    │  ┌──────────┐   ┌──────────────────────┐    │
-                                    │  │ Guardrails│   │  AgentPlatformService│    │
-                                    │  │ PIIGuard  │──►│                      │    │
-                                    │  │ Allowlist │   │  PlannerAgent        │    │
-                                    │  │ RespGuard │   │    ↓                 │    │
-                                    │  └──────────┘   │  ExecutorAgent        │    │
-                                    │                  │    ↓ tools            │    │
-                                    │                  │  LLMProvider          │    │
-                                    │                  │    ↓ circuit breaker  │    │
-                                    │                  │  TelemetryStore (SQL) │    │
-                                    │                  └──────────────────────┘    │
-                                    └──────────────────────────────────────────────┘
+```text
+Client
+  -> FastAPI middleware
+  -> prompt guardrails
+  -> AgentPlatformService
+  -> PlannerAgent
+  -> ExecutorAgent
+  -> tools
+  -> LLMProvider
+  -> response guardrails
+  -> telemetry store
+  -> response with answer, trace, cost, latency, and fallback flag
 ```
 
-### Layer summary
+### Layer Map
 
-| Layer | File | What it does |
+| Layer | File | Purpose |
 |---|---|---|
-| **Middleware** | `app/middleware.py` | Injects `X-Request-ID`, measures latency, structured JSON logs |
-| **Guardrails** | `app/guardrails.py` | PII scan, tool allowlist, response length/phrase enforcement |
-| **Planner** | `app/orchestration.py` | Keyword/numeric detection → selects tool set |
-| **Executor** | `app/orchestration.py` | Runs tools, assembles context blob |
-| **Tools** | `app/tools/` | Calculator (AST-safe), SearchDocs (in-memory keyword) |
-| **Provider** | `app/providers/` | Protocol + factory: mock, OpenAI, Ollama, Anthropic |
-| **Reliability** | `app/reliability.py` | Circuit breaker (CLOSED/OPEN/HALF_OPEN) + retry with backoff |
-| **Telemetry** | `app/telemetry.py` | SQLite-backed event store, AVG/SUM summary queries |
-| **Memory** | `app/memory.py` | In-memory session facts |
-| **Evaluation** | `evaluation/run.py` | F1/precision/recall/exact-match harness, CI gate |
-| **Dashboard** | `dashboard/app.py` | Streamlit real-time analytics with Plotly charts |
+| API | `app/main.py` | Routes, exception handling, health, metrics |
+| Middleware | `app/middleware.py` | Request ID, latency measurement, structured logs |
+| Guardrails | `app/guardrails.py` | Prompt and response policy enforcement |
+| Memory | `app/memory.py` | In-memory session facts |
+| Orchestration | `app/orchestration.py` | Planner, executor, and service flow |
+| Providers | `app/providers/` | Mock, OpenAI, Ollama, and Anthropic provider contracts |
+| Reliability | `app/reliability.py` | Circuit breaker and retry behavior |
+| Telemetry | `app/telemetry.py` | SQLite event store and summary queries |
+| Evaluation | `evaluation/run.py` | Planner regression benchmark |
+| Dashboard | `dashboard/app.py` | Runtime analytics UI |
 
----
-
-## Quick start
+## Quick Start
 
 ```bash
 git clone https://github.com/manjeetkumar53/agentic-ai-platform.git
 cd agentic-ai-platform
 
 python3 -m venv .venv
-source .venv/bin/activate      # Windows: .venv\Scripts\activate
+source .venv/bin/activate
 pip install -r requirements.txt
 
 uvicorn app.main:app --reload
 ```
 
-Open **http://127.0.0.1:8000/docs** for the interactive Swagger UI.
+Open Swagger UI at `http://127.0.0.1:8000/docs`.
 
-## Local run modes
-
-### API only
+## Example Request
 
 ```bash
-uvicorn app.main:app --reload
+curl -s -X POST http://127.0.0.1:8000/v1/agent/run \
+  -H "Content-Type: application/json" \
+  -d '{"prompt":"What is 128 * 7 using CQRS context?","session_id":"demo-session"}'
 ```
 
-### API + dashboard
-
-```bash
-# terminal 1
-uvicorn app.main:app --reload
-
-# terminal 2
-streamlit run dashboard/app.py
-```
-
-### API with Ollama provider
-
-```bash
-# terminal 1
-ollama serve
-
-# terminal 2
-MODEL_PROVIDER=ollama uvicorn app.main:app --reload
-```
-
-### Analytics dashboard
-
-```bash
-streamlit run dashboard/app.py
-```
-
-### Planner evaluation
-
-```bash
-python -m evaluation.run
-```
-
----
-
-## Configuration
-
-Copy `.env.example` and adjust:
-
-```env
-MODEL_PROVIDER=mock          # mock | ollama | openai | anthropic
-INPUT_PRICE_PER_1M=0.15
-OUTPUT_PRICE_PER_1M=0.60
-MAX_ATTEMPTS=2
-BREAKER_FAILURE_THRESHOLD=3
-BREAKER_RECOVERY_TIMEOUT_S=15
-TELEMETRY_DB=telemetry.db
-```
-
-### Switching providers
-
-| Provider | Env | Notes |
-|---|---|---|
-| `mock` | — | Default, deterministic, zero latency |
-| `ollama` | `OLLAMA_BASE_URL`, `OLLAMA_MODEL` | Requires local `ollama serve` |
-| `openai` | `OPENAI_API_KEY` | Requires `pip install openai` |
-| `anthropic` | `ANTHROPIC_API_KEY` | Requires `pip install anthropic` |
-
----
-
-## API Reference
-
-### `POST /v1/agent/run`
-
-```json
-{
-  "prompt": "What is 128 * 7 using CQRS context?",
-  "session_id": "optional-session-id"
-}
-```
-
-**Response:**
+Example response shape:
 
 ```json
 {
@@ -175,7 +102,11 @@ TELEMETRY_DB=telemetry.db
     "planner_reasoning": "Detected numeric intent; Detected architecture/docs lookup intent",
     "selected_tools": ["calculator", "search_docs"],
     "tool_calls": [
-      { "tool_name": "calculator", "tool_input": "128 * 7", "tool_output": "896" }
+      {
+        "tool_name": "calculator",
+        "tool_input": "128 * 7",
+        "tool_output": "896"
+      }
     ]
   },
   "latency_ms": 4.2,
@@ -187,229 +118,98 @@ TELEMETRY_DB=telemetry.db
 }
 ```
 
-**Guardrail violation (HTTP 422):**
+## Operational Endpoints
 
-```json
-{
-  "error": "guardrail_violation",
-  "guard": "PIIGuard",
-  "detail": "Detected email pattern in prompt — request blocked"
-}
-```
-
-### `GET /v1/metrics/summary`
-
-Returns aggregate runtime metrics: `request_count`, `avg_latency_ms`, `avg_cost_usd`, `total_cost_usd`, `fallback_count`, `by_provider`.
-
-### `GET /v1/circuit-breaker/status`
-
-Returns `{ "state": "closed" }`. States: `closed` -> `open` -> `half_open`.
-
-### `GET /v1/eval/events?limit=100`
-
-Returns raw telemetry events as `{ "events": [...] }`.
-
----
+| Endpoint | Purpose |
+|---|---|
+| `GET /health` | Liveness check |
+| `POST /v1/agent/run` | Run planner, tools, provider, guardrails, and telemetry |
+| `GET /v1/metrics/summary` | Aggregate latency, cost, provider, request, and fallback metrics |
+| `GET /v1/eval/events?limit=100` | Recent telemetry events |
+| `GET /v1/circuit-breaker/status` | Current reliability state |
 
 ## Guardrails
 
 | Guard | Trigger | Action |
 |---|---|---|
-| **PIIGuard** | Email, phone, SSN, credit card, IPv4 in prompt | HTTP 422, request blocked |
-| **ToolAllowlist** | Session requests a tool not in its allowlist | HTTP 422, request blocked |
-| **ResponseGuard** | Response too long or contains blocked phrases | HTTP 422, response suppressed |
+| `PIIGuard` | Email, phone, SSN, credit card, IPv4 in prompt | HTTP 422, request blocked |
+| `ToolAllowlist` | Session requests a tool not in its allowlist | HTTP 422, request blocked |
+| `ResponseGuard` | Response too long or contains blocked phrases | HTTP 422, response suppressed |
 
-PIIGuard also exposes `redact()` — replaces sensitive tokens with `[REDACTED-TYPE]` placeholders.
+Guardrail violations return structured error payloads so clients can distinguish safety failures from provider failures.
 
----
+## Provider Modes
 
-## Reliability
-
-- **CircuitBreaker** — CLOSED → OPEN after N failures, auto-probes, returns to CLOSED on success
-- **Retry with backoff** — configurable max attempts and initial delay
-- **Fallback** — silent fallback to `MockLLMProvider` on provider failure; `fallback_used: true` in response
-
-## Operational endpoints
-
-- `GET /health`: liveness check
-- `GET /v1/metrics/summary`: aggregate request, latency, cost, fallback metrics
-- `GET /v1/eval/events?limit=100`: recent event stream
-- `GET /v1/circuit-breaker/status`: current reliability state
-
----
-
-## Planner evaluation
-
-```
-python -m evaluation.run
-
-=== Planner Evaluation Report ===
-Elapsed: 0.66 ms  |  Samples: 15
-
-Overall:
-  precision       1.0000
-  recall          1.0000
-  f1              1.0000
-  exact_match     1.0000
-
-By category:
-  arithmetic     exact=1.00  f1=1.00  n=5
-  docs           exact=1.00  f1=1.00  n=5
-  multi-tool     exact=1.00  f1=1.00  n=2
-  direct         exact=1.00  f1=1.00  n=3
+```env
+MODEL_PROVIDER=mock
+INPUT_PRICE_PER_1M=0.15
+OUTPUT_PRICE_PER_1M=0.60
+MAX_ATTEMPTS=2
+BREAKER_FAILURE_THRESHOLD=3
+BREAKER_RECOVERY_TIMEOUT_S=15
+TELEMETRY_DB=telemetry.db
 ```
 
-CI gates on F1 ≥ 0.80 — exit code 1 if regression detected.
+| Provider | Required configuration |
+|---|---|
+| `mock` | None, deterministic default |
+| `ollama` | `OLLAMA_BASE_URL`, `OLLAMA_MODEL` |
+| `openai` | `OPENAI_API_KEY` |
+| `anthropic` | `ANTHROPIC_API_KEY` |
 
----
-
-## How to test
-
-### 1. Fast smoke test (manual API validation)
-
-Start the API:
-
-```bash
-uvicorn app.main:app --reload
-```
-
-Run these checks:
-
-```bash
-# health
-curl -s http://127.0.0.1:8000/health
-
-# normal request
-curl -s -X POST http://127.0.0.1:8000/v1/agent/run \
-  -H "Content-Type: application/json" \
-  -d '{"prompt":"What is 42 * 7?"}'
-
-# guardrail violation (expects HTTP 422)
-curl -s -X POST http://127.0.0.1:8000/v1/agent/run \
-  -H "Content-Type: application/json" \
-  -d '{"prompt":"email me at demo@example.com"}'
-
-# telemetry and breaker
-curl -s http://127.0.0.1:8000/v1/metrics/summary
-curl -s http://127.0.0.1:8000/v1/circuit-breaker/status
-curl -s "http://127.0.0.1:8000/v1/eval/events?limit=5"
-```
-
-### 2. Automated test suite
+## Validation
 
 ```bash
 pytest -q
-```
-
-Expected outcome: all tests pass.
-
-### 3. Run only critical suites
-
-```bash
-# orchestration + reliability behavior
-pytest -q tests/test_orchestrator.py tests/test_metrics.py
-
-# guardrail policy coverage
-pytest -q tests/test_guardrails.py
-
-# dashboard fetch helper behavior
-pytest -q tests/test_dashboard.py
-```
-
-### 4. Planner regression benchmark
-
-```bash
 python -m evaluation.run
-```
-
-This prints precision/recall/F1/exact-match and exits non-zero if quality drops below threshold.
-
-### 5. Dashboard verification
-
-```bash
-# terminal 1
-uvicorn app.main:app --reload
-
-# terminal 2
 streamlit run dashboard/app.py
 ```
 
-In the dashboard, validate:
+Planner benchmark sample:
 
-- request count increases after API calls
-- provider mix and latency charts update
-- fallback count remains stable unless forced failures are introduced
-- circuit breaker badge reflects runtime state
-
-### Test coverage map
-
-| Module | Focus area |
-|---|---|
-| `test_health.py` | service liveness endpoint |
-| `test_orchestrator.py` | planning, tool calls, memory interaction, fallback path |
-| `test_metrics.py` | summary/event endpoints, request ID propagation, breaker status |
-| `test_evaluation.py` | metric math + benchmark dataset integration |
-| `test_dashboard.py` | dashboard data fetch helpers (offline mocks) |
-| `test_guardrails.py` | PII detection, allowlists, response constraints, HTTP 422 behavior |
-
----
-
-## Project structure
-
+```text
+precision       1.0000
+recall          1.0000
+f1              1.0000
+exact_match     1.0000
 ```
+
+The benchmark exits non-zero if F1 drops below the configured threshold.
+
+## Design Decisions
+
+- **Explicit traces:** planner reasoning, selected tools, and tool outputs are returned for debuggability.
+- **Deterministic local mode:** the mock provider keeps tests stable and usable without API keys.
+- **Guardrails in the request path:** safety checks happen before and after provider generation.
+- **Provider contract:** OpenAI, Anthropic, Ollama, and mock providers sit behind the same interface.
+- **Telemetry by default:** cost, latency, fallback, and provider decisions are persisted locally.
+
+## Project Structure
+
+```text
 agentic-ai-platform/
 ├── app/
-│   ├── config.py          # Settings dataclass (env vars)
-│   ├── guardrails.py      # PIIGuard, ToolAllowlist, ResponseGuard
-│   ├── main.py            # FastAPI app, routes, exception handlers
-│   ├── memory.py          # In-memory session store
-│   ├── middleware.py      # X-Request-ID + latency logging
-│   ├── models.py          # Pydantic request/response models
-│   ├── orchestration.py   # PlannerAgent, ExecutorAgent, AgentPlatformService
-│   ├── reliability.py     # CircuitBreaker, retry_with_backoff
-│   ├── telemetry.py       # TelemetryStore (SQLite), TelemetryEvent
-│   ├── providers/         # LLMProvider protocol + mock/openai/ollama/anthropic
-│   └── tools/             # calculator, search_docs, base protocol
+│   ├── guardrails.py
+│   ├── main.py
+│   ├── memory.py
+│   ├── middleware.py
+│   ├── orchestration.py
+│   ├── reliability.py
+│   ├── telemetry.py
+│   ├── providers/
+│   └── tools/
 ├── dashboard/
-│   └── app.py             # Streamlit analytics dashboard
 ├── evaluation/
-│   ├── prompts.json       # 15 labeled benchmark prompts
-│   └── run.py             # Precision/recall/F1 harness with CLI
 ├── scripts/
-│   └── generate_demo_assets.py   # Playwright screenshots + Pillow GIF
 ├── tests/
-│   ├── conftest.py
-│   ├── test_dashboard.py
-│   ├── test_evaluation.py
-│   ├── test_guardrails.py
-│   ├── test_health.py
-│   ├── test_metrics.py
-│   └── test_orchestrator.py
-└── assets/
-    ├── demo/agent-flow.gif
-    └── screenshots/
+├── assets/
+└── README.md
 ```
 
----
+## Production Hardening Backlog
 
-## Milestones
-
-| Milestone | Commit | What shipped |
-|-----|--------|--------------|
-| Core API and orchestration | `fa2cacf` | FastAPI scaffold, Planner→Executor flow, mock provider, tools, session memory, tests |
-| Provider abstraction and resilience | `2fe8f6f` | Provider factory (mock/OpenAI/Ollama/Anthropic), circuit breaker, retry, telemetry |
-| Persistent telemetry and request tracing | `b435236` | SQLite telemetry, RequestLoggingMiddleware, X-Request-ID, /eval/events |
-| Planner evaluation harness | `1cffb53` | 15-prompt benchmark, precision/recall/F1/exact-match metrics, CI quality gate |
-| Runtime analytics dashboard | `40a2a10` | Streamlit dashboard with latency/cost/provider/fallback views |
-| Guardrails and policy handling | `41feaf4` | PIIGuard, ToolAllowlist, ResponseGuard, HTTP 422 violation handling |
-| Documentation and demo assets | `3136321` | README upgrade, architecture diagram, flow GIF, asset generation script |
-
----
-
-## Stack
-
-- **Python 3.13** / **FastAPI 0.116** / **Pydantic v2**
-- **SQLite** (stdlib) — zero-dependency telemetry persistence
-- **Streamlit + Plotly + pandas** — analytics dashboard
-- **Playwright + Pillow** — screenshot and GIF generation
-- **pytest + httpx** — isolated temp DB per test session
+- Replace in-memory session facts with Redis or Postgres-backed memory
+- Add tenant-aware tool policies
+- Add OpenTelemetry tracing
+- Add persisted evaluation history
+- Add CI workflow that gates planner regressions
